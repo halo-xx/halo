@@ -3,11 +3,8 @@ package run.halo.app.controller.admin.api;
 import cn.hutool.core.util.IdUtil;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.data.web.SortDefault;
 import org.springframework.web.bind.annotation.*;
 import run.halo.app.cache.StringCacheStore;
 import run.halo.app.model.dto.post.BasePostMinimalDTO;
@@ -32,6 +29,7 @@ import static org.springframework.data.domain.Sort.Direction.DESC;
  *
  * @author johnniang
  * @author ryanwang
+ * @author guqing
  * @date 3/19/19
  */
 @RestController
@@ -54,13 +52,8 @@ public class PostController {
 
     @GetMapping
     @ApiOperation("Lists posts")
-    public Page<PostListVO> pageBy(Integer page, Integer size,
-                                   @SortDefault.SortDefaults({
-                                           @SortDefault(sort = "topPriority", direction = DESC),
-                                           @SortDefault(sort = "createTime", direction = DESC)
-                                   }) Sort sort,
+    public Page<PostListVO> pageBy(@PageableDefault(sort = {"topPriority", "createTime"}, direction = DESC) Pageable pageable,
                                    PostQuery postQuery) {
-        Pageable pageable = PageRequest.of(page, size, sort);
         Page<Post> postPage = postService.pageBy(postQuery, pageable);
         return postService.convertToListVo(postPage);
     }
@@ -102,8 +95,7 @@ public class PostController {
                                  @RequestParam(value = "autoSave", required = false, defaultValue = "false") Boolean autoSave) {
         // Convert to
         Post post = postParam.convertTo();
-
-        return postService.createBy(post, postParam.getTagIds(), postParam.getCategoryIds(), autoSave);
+        return postService.createBy(post, postParam.getTagIds(), postParam.getCategoryIds(), postParam.getPostMetas(), autoSave);
     }
 
     @PutMapping("{postId:\\d+}")
@@ -114,8 +106,7 @@ public class PostController {
         Post postToUpdate = postService.getById(postId);
 
         postParam.update(postToUpdate);
-
-        return postService.updateBy(postToUpdate, postParam.getTagIds(), postParam.getCategoryIds(), autoSave);
+        return postService.updateBy(postToUpdate, postParam.getTagIds(), postParam.getCategoryIds(), postParam.getPostMetas(), autoSave);
     }
 
     @PutMapping("{postId:\\d+}/status/{status}")

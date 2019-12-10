@@ -13,9 +13,12 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import run.halo.app.cache.StringCacheStore;
 import run.halo.app.cache.lock.CacheLock;
+import run.halo.app.exception.BadRequestException;
 import run.halo.app.exception.ForbiddenException;
+import run.halo.app.exception.NotFoundException;
 import run.halo.app.model.entity.Category;
 import run.halo.app.model.entity.Post;
+import run.halo.app.model.entity.PostMeta;
 import run.halo.app.model.entity.Tag;
 import run.halo.app.model.enums.PostStatus;
 import run.halo.app.model.vo.BaseCommentVO;
@@ -23,7 +26,6 @@ import run.halo.app.model.vo.PostListVO;
 import run.halo.app.service.*;
 import run.halo.app.utils.MarkdownUtils;
 
-import java.io.File;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -33,6 +35,7 @@ import static org.springframework.data.domain.Sort.Direction.DESC;
  * Blog archive page controller
  *
  * @author ryanwang
+ * @author guqing
  * @date : 2019-03-17
  */
 @Slf4j
@@ -46,6 +49,8 @@ public class ContentArchiveController {
 
     private final PostCategoryService postCategoryService;
 
+    private final PostMetaService postMetaService;
+
     private final PostTagService postTagService;
 
     private final PostCommentService postCommentService;
@@ -57,6 +62,7 @@ public class ContentArchiveController {
     public ContentArchiveController(PostService postService,
                                     ThemeService themeService,
                                     PostCategoryService postCategoryService,
+                                    PostMetaService postMetaService,
                                     PostTagService postTagService,
                                     PostCommentService postCommentService,
                                     OptionService optionService,
@@ -64,6 +70,7 @@ public class ContentArchiveController {
         this.postService = postService;
         this.themeService = themeService;
         this.postCategoryService = postCategoryService;
+        this.postMetaService = postMetaService;
         this.postTagService = postTagService;
         this.postCommentService = postCommentService;
         this.optionService = optionService;
@@ -123,7 +130,7 @@ public class ContentArchiveController {
                        Model model) {
         Post post;
         if (preview) {
-            post = postService.getBy(PostStatus.DRAFT, url);
+            post = postService.getByUrl(url);
         } else if (intimate) {
             post = postService.getBy(PostStatus.INTIMATE, url);
         } else {
@@ -136,10 +143,10 @@ public class ContentArchiveController {
             post.setFormatContent(MarkdownUtils.renderHtml(post.getOriginalContent()));
 
             // verify token
-            String cachedToken = cacheStore.getAny("preview-post-token-" + post.getId(), String.class).orElseThrow(() -> new ForbiddenException("该文章的预览链接不存在或已过期"));
+            String cachedToken = cacheStore.getAny("preview-post-token-" + post.getId(), String.class).orElseThrow(() -> new NotFoundException("该文章的预览链接不存在或已过期"));
 
             if (!cachedToken.equals(token)) {
-                throw new ForbiddenException("该文章的预览链接不存在或已过期");
+                throw new BadRequestException("预览 Token 错误");
             }
         }
 
@@ -157,6 +164,7 @@ public class ContentArchiveController {
 
         List<Category> categories = postCategoryService.listCategoriesBy(post.getId());
         List<Tag> tags = postTagService.listTagsBy(post.getId());
+        List<PostMeta> metas = postMetaService.listBy(post.getId());
 
         Page<BaseCommentVO> comments = postCommentService.pageVosBy(post.getId(), PageRequest.of(cp, optionService.getCommentPageSize(), sort));
 
@@ -164,6 +172,7 @@ public class ContentArchiveController {
         model.addAttribute("post", postService.convertToDetailVo(post));
         model.addAttribute("categories", categories);
         model.addAttribute("tags", tags);
+        model.addAttribute("metas", postMetaService.convertToMap(metas));
         model.addAttribute("comments", comments);
 
         if (preview) {
@@ -187,7 +196,7 @@ public class ContentArchiveController {
     }
 
     @PostMapping(value = "{url}/password")
-    @CacheLock
+    @CacheLock(traceRequest = true, expired = 2)
     public String password(@PathVariable("url") String url,
                            @RequestParam(value = "password") String password) {
         Post post = postService.getBy(PostStatus.INTIMATE, url);

@@ -31,7 +31,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Properties;
 
+import static run.halo.app.model.support.HaloConst.FILE_SEPARATOR;
 import static run.halo.app.model.support.HaloConst.HALO_ADMIN_RELATIVE_PATH;
+import static run.halo.app.utils.HaloUtils.*;
 
 /**
  * Mvc configuration.
@@ -80,17 +82,20 @@ public class WebMvcAutoConfiguration implements WebMvcConfigurer {
      */
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        String workDir = FILE_PROTOCOL + haloProperties.getWorkDir();
+        String workDir = FILE_PROTOCOL + ensureSuffix(haloProperties.getWorkDir(), FILE_SEPARATOR);
+        String backupDir = FILE_PROTOCOL + ensureSuffix(haloProperties.getBackupDir(), FILE_SEPARATOR);
         registry.addResourceHandler("/**")
                 .addResourceLocations(workDir + "templates/themes/")
                 .addResourceLocations(workDir + "templates/admin/")
                 .addResourceLocations("classpath:/admin/")
                 .addResourceLocations(workDir + "static/");
-        registry.addResourceHandler("/upload/**")
+
+        String uploadUrlPattern = ensureBoth(haloProperties.getUploadUrlPrefix(), URL_SEPARATOR) + "**";
+        String adminPathPattern = ensureSuffix(haloProperties.getAdminPath(), URL_SEPARATOR) + "**";
+
+        registry.addResourceHandler(uploadUrlPattern)
                 .addResourceLocations(workDir + "upload/");
-        registry.addResourceHandler("/backup/**")
-                .addResourceLocations(workDir + "backup/");
-        registry.addResourceHandler("/admin/**")
+        registry.addResourceHandler(adminPathPattern)
                 .addResourceLocations(workDir + HALO_ADMIN_RELATIVE_PATH)
                 .addResourceLocations("classpath:/admin/");
 

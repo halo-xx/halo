@@ -75,9 +75,15 @@ public class AttachmentController {
      * @param id id
      */
     @DeleteMapping("{id:\\d+}")
-    @ApiOperation("Delete attachment by id")
+    @ApiOperation("Delete attachment permanently by id")
     public AttachmentDTO deletePermanently(@PathVariable("id") Integer id) {
         return attachmentService.convertToDto(attachmentService.removePermanently(id));
+    }
+
+    @DeleteMapping
+    @ApiOperation("Delete attachments permanently in batch by id array")
+    public List<Attachment> deletePermanentlyInBatch(@RequestBody List<Integer> ids) {
+        return attachmentService.removePermanently(ids);
     }
 
     @PostMapping("upload")
